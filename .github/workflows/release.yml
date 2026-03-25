@@ -2,7 +2,7 @@ name: Release DUET
 on:
   push:
     tags:
-      - 'v*' 
+      - 'v*'
 
 jobs:
   publish:
@@ -12,8 +12,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: 'windows-latest' 
-          - platform: 'ubuntu-22.04'  
+          - platform: 'windows-latest'
+            args: ''
+          - platform: 'ubuntu-22.04'
+            args: '--target aarch64-linux-android'
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -25,13 +27,30 @@ jobs:
           node-version: lts/*
           cache: 'npm'
 
-      - name: Install Rust (Required for Tauri)
+      - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.platform == 'ubuntu-22.04' && 'aarch64-linux-android,armv7-linux-androideabi,i686-linux-android,x86_64-linux-android' || '' }}
+          targets: ${{ matrix.platform == 'ubuntu-22.04' && 'aarch64-linux-android' || '' }}
+
+      - name: Setup Java
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      - name: Setup Android SDK
+        if: matrix.platform == 'ubuntu-22.04'
+        uses: android-actions/setup-android@v3
 
       - name: Install Dependencies
         run: npm install
+
+      - name: Initialize Android (if missing)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: npx tauri android init
+        continue-on-error: true 
+
       - name: Build and Release
         uses: tauri-apps/tauri-action@v0
         env:
@@ -39,7 +58,7 @@ jobs:
         with:
           tagName: ${{ github.ref_name }}
           releaseName: 'DUET v__VERSION__'
-          releaseBody: 'Automated release from GitHub Actions'
+          releaseBody: 'Automated release for Windows and Android.'
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.platform == 'ubuntu-22.04' && '--target android' || '' }}
+          args: ${{ matrix.args }}
